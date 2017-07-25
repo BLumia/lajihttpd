@@ -1,0 +1,10 @@
+# Dir
+.vscode/
+
+# Bin
+*.o
+*.elf
+*.a
+
+# Log
+*.log
