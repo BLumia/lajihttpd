@@ -118,7 +118,7 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
         http_response_error(socketfd, 403); return 0;// or maybe 404?
     }
 
-    laji_log("Handle accept.");
+    laji_log(LOG_VERBOSE, "Handle accept.");
 
     struct stat file_stat;
     fstat(filefd, &file_stat);

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <configman.h>
 #include <logger.h>
@@ -13,6 +14,7 @@ int listenfd;
 
 int httpd_setup_main();
 int httpd_shutdown_main();
+void httpd_shutdown_signal_handler(int signo);
 
 int main(int argc, char** argv) {
 
@@ -29,6 +31,12 @@ int httpd_setup_main() {
     laji_log_init("./log/");
     httpd_config_main(&httpd_cfg);
 
+    laji_log_level_set_c(httpd_cfg.LOG_LEVEL);
+
+    if (signal(SIGINT, httpd_shutdown_signal_handler) == SIG_ERR) {
+        laji_log_s(LOG_ERROR, "Can't catch SIGINT");
+    }
+    
     if (chdir(httpd_cfg.WWW_PATH) == -1) { 
         printf("Error: Can not change to directory '%s'\n", httpd_cfg.WWW_PATH);
         perror("Reason");
@@ -49,6 +57,14 @@ int httpd_setup_main() {
     }
 
     epollmgr_init(listenfd);
+
+}
+
+void httpd_shutdown_signal_handler(int signo) {
+
+    laji_log_s(LOG_INFO, "Shutting down lajihttpd.");
+    httpd_shutdown_main();
+    exit(EXIT_SUCCESS);
 
 }
 

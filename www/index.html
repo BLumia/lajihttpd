@@ -1,8 +1,36 @@
+<!DOCTYPE html>
 <html>
   <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <title>Lajihttpd Default Page: It Works</title>
-    <meta content="">
-    <style></style>
+    <style>
+      tt {
+        font-family: monospace;
+      }
+      html {
+        background-color: #D8DBE2;
+      }
+      body {
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+        border-width: 2px;
+        border-color: #212738;
+        border-style: solid;
+        background-color: #FFFFFF;
+        padding: 4px 8px 4px 8px;
+      }
+      .text-center {
+        text-align: center;
+      }
+    </style>
   </head>
-  <body>Lajihttpd Default Page: It Works</body>
+  <body>
+    <h1>Lajihttpd Default Page</h1>
+    <hr/>
+    <div class="text-center">It Works</div>
+    <hr/>
+    <p>This is the default welcome page used to test the correct operation of the <b>lajihttpd</b> server after installation on your systems. If you can read this page, it means that the <b>lajihttpd</b> HTTP server installed at this site is working properly. You should replace this file (located at the path you defined in the configuration file <tt>httpd.conf</tt> with variable name <tt>WWW_PATH</tt>) before continuing to operate your HTTP server.</p>
+    <p>Last paragraph is copy and edit from Apache's It Works page.</p>
+  </body>
 </html>
