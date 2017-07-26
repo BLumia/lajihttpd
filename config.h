@@ -7,7 +7,6 @@
 typedef struct httpd_config {
     char WWW_PATH[PATH_MAX];
     int PORT;
-    int ENABLE_LOG;
     char LOG_LEVEL;
     int ENABLE_CACHE;
     int USE_MQ;
