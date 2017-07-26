@@ -36,6 +36,12 @@ statuscode_t status_arr[] = {
     {501, "Not Implemented"}
 };
 
+char laji_httpd_caching_data[BUFFER_SIZE];
+char laji_httpd_caching_file[161];
+size_t laji_httpd_caching_size;
+
+int laji_httpd_caching_enabled = 1;
+
 int http_handle_read(epoll_evt_data_t* http_evt) {
 
     ssize_t read_size;
@@ -112,24 +118,45 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
         }
     }
 
-    char* decodedUri = http_evt->url;
-    filefd = open(decodedUri, O_RDONLY); 
-    if(filefd == -1) {
-        http_response_error(socketfd, 403); return 0;// or maybe 404?
-    }
-
     laji_log(LOG_VERBOSE, "Handle accept.");
 
-    struct stat file_stat;
-    fstat(filefd, &file_stat);
+    char* decoded_uri = http_evt->url;
+    int use_caching_data = 0;
 
-    sprintf(buffer,"HTTP/1.0 200 OK\r\nContent-Type: %s\r\nConnection: close\r\nContent-Length: %ld\r\n\r\n", content_type_str, file_stat.st_size);
-    write(socketfd,buffer,strlen(buffer));
-    while ((buffer_size = read(filefd, buffer, BUFFER_SIZE)) > 0 ) {
-        write(socketfd, buffer, buffer_size);
+    if (laji_httpd_caching_enabled) {
+        int slen = strlen(decoded_uri);
+        if (strncmp(decoded_uri, laji_httpd_caching_file, slen) == 0) use_caching_data = 1;
+    } 
+    if (use_caching_data) {
+        write(socketfd, laji_httpd_caching_data, laji_httpd_caching_size);
+    } else {
+        filefd = open(decoded_uri, O_RDONLY); 
+        if(filefd == -1) {
+            http_response_error(socketfd, 403); return 0;// or maybe 404?
+        }
+
+        struct stat file_stat;
+        fstat(filefd, &file_stat);
+
+        sprintf(buffer,"HTTP/1.0 200 OK\r\nContent-Type: %s\r\nConnection: close\r\nContent-Length: %ld\r\n\r\n", content_type_str, file_stat.st_size);
+        write(socketfd,buffer,strlen(buffer));
+
+        if (laji_httpd_caching_enabled && file_stat.st_size < 4096) {
+            laji_httpd_caching_size = 0;
+            while ((buffer_size = read(filefd, buffer, BUFFER_SIZE)) > 0 ) {
+                memcpy(laji_httpd_caching_data + laji_httpd_caching_size, buffer, buffer_size);
+                laji_httpd_caching_size += buffer_size;
+                write(socketfd, buffer, buffer_size);
+            }
+        } else {
+            while ((buffer_size = read(filefd, buffer, BUFFER_SIZE)) > 0 ) {
+                write(socketfd, buffer, buffer_size);
+            }
+        }
+        
+
+        close(filefd);
     }
-
-    close(filefd);
 
     read(socketfd, buffer, sizeof(buffer)); // anyone tell me why need read() here?
     close(http_evt->fd);
@@ -150,6 +177,10 @@ int http_response_error(int socketfd, int status_code) {
 
     return 0;
 
+}
+
+int http_caching_toggle(int caching_enabled) {
+    laji_httpd_caching_enabled = caching_enabled == 0 ? 0 : 1;
 }
 
 int http_copy_urldecoded_str(char* dest, char *pstr) {

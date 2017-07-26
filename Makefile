@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -std=c11 -D_POSIX_C_SOURCE -I../libaji/include/ -L../libaji/lib/ -laji
+CFLAGS = -g -std=c11 -D_POSIX_C_SOURCE -I../libaji/include/ -L../libaji/lib/ -laji -lrt -pthread
 
 all: httpd.elf
 	@echo "Done"

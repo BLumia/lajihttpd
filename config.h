@@ -9,6 +9,8 @@ typedef struct httpd_config {
     int PORT;
     int ENABLE_LOG;
     char LOG_LEVEL;
+    int ENABLE_CACHE;
+    int USE_MQ;
 } httpd_config_t;
 
 int httpd_config_main(httpd_config_t* cfg);

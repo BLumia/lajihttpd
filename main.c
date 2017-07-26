@@ -31,7 +31,7 @@ int httpd_setup_main() {
     laji_log_init("./log/");
     httpd_config_main(&httpd_cfg);
 
-    laji_log_level_set_c(httpd_cfg.LOG_LEVEL);
+    laji_log_s(LOG_INFO, "Setting up lajihttpd.");
 
     if (signal(SIGINT, httpd_shutdown_signal_handler) == SIG_ERR) {
         laji_log_s(LOG_ERROR, "Can't catch SIGINT");
