@@ -118,8 +118,6 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
         }
     }
 
-    laji_log(LOG_VERBOSE, "Handle accept.");
-
     char* decoded_uri = http_evt->url;
     int use_caching_data = 0;
 
@@ -128,8 +126,15 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
         if (strncmp(decoded_uri, laji_httpd_caching_file, slen) == 0) use_caching_data = 1;
     } 
     if (use_caching_data) {
+
+        laji_log(LOG_VERBOSE, "Handle accept using cache.");
+
         write(socketfd, laji_httpd_caching_data, laji_httpd_caching_size);
+
     } else {
+
+        laji_log(LOG_VERBOSE, "Handle accept normally.");
+
         filefd = open(decoded_uri, O_RDONLY); 
         if(filefd == -1) {
             http_response_error(socketfd, 403); return 0;// or maybe 404?
