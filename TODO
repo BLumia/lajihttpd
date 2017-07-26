@@ -1,0 +1,4 @@
+1. recv() at sfdgets() lower than 0:: Success
+2. cache does not works now.
+3. multithread epoll worker.
+4. logger issue (why cause the socketfd close delayed)
