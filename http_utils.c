@@ -52,7 +52,8 @@ int http_handle_read(epoll_evt_data_t* http_evt) {
     read_size = sfdgets(socketfd, buffer, BUFFER_SIZE);
     // should not equals to 0 since this is the only line we need.
     if (read_size <= 0) {
-        perror("recv() at sfdgets() lower than 0:");
+        if (read_size < 0) perror("recv() at sfdgets() lower than 0:");
+        else laji_log(LOG_WARN, "sfdgets() read 0 byte in a socketfd.");
         close(socketfd);
         free(http_evt);
         return -1;
@@ -63,6 +64,8 @@ int http_handle_read(epoll_evt_data_t* http_evt) {
     } else {
         http_evt->type = GET;
     }
+
+    http_evt->response_code = 200; // init response code
 
     for(int i = 4; i < read_size; i++) {
         // safe check for not allowed access out of the WWW_PATH
@@ -84,7 +87,6 @@ int http_handle_read(epoll_evt_data_t* http_evt) {
     }
 
     http_copy_urldecoded_str(http_evt->url, &buffer[5]);
-    http_evt->response_code = 200;
 
     Epoll_ctl(http_evt->epollfd, EPOLL_CTL_ADD, http_evt->fd, EPOLLOUT, http_evt);
     
@@ -99,18 +101,18 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
 
     socketfd = http_evt->fd;
     if (http_evt->type != GET) {
-        http_response_error(socketfd, 405);
+        http_response_error(socketfd, 405);  return 0;
     }
 
     if (http_evt->response_code != 200) {
-        http_response_error(socketfd, 403);
+        http_response_error(socketfd, http_evt->response_code);  return 0;
     }
 
     sprintf(buffer, "%s", http_evt->url);
     buffer_size = strlen(buffer);
     content_type_str = type_arr[0].type;
 
-    for(int i=1; i < sizeof(type_arr); i++) {
+    for(int i=1; i < 14; i++) { // 14 is the elem count of type_arr[]
         size_t slen = strlen(type_arr[i].ext);
         if(!strncmp(&buffer[buffer_size-slen], type_arr[i].ext, slen)) {
             content_type_str = type_arr[i].type;
@@ -138,7 +140,7 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
 
         filefd = open(decoded_uri, O_RDONLY); 
         if(filefd == -1) {
-            http_response_error(socketfd, 403); return 0;// or maybe 404?
+            http_response_error(socketfd, 404); return 0;
         }
 
         struct stat file_stat;
@@ -177,15 +179,16 @@ int http_response_error(int socketfd, int status_code) {
 
     char buffer[BUFFER_SIZE+1], *status_str;
     status_str = status_arr[0].desc;
-    for(int i=1; i < sizeof(status_arr); i++) {
+    for(int i=1; i < 5; i++) { // 5 is the elem count of status_arr[]
         if (status_arr[i].code == status_code) status_str = status_arr[i].desc;
     }
 
     sprintf(buffer,"HTTP/1.0 %d %s\r\nContent-Type: text/html\r\nConnection: close\r\nContent-Length: 4\r\n\r\n%d\n", status_code, status_str, status_code);
-    write(socketfd,buffer,strlen(buffer));
+    write(socketfd, buffer, strlen(buffer));
+    read(socketfd, buffer, strlen(buffer)); // anyone tell me why need read() here?
+    close(socketfd);
 
     return 0;
-
 }
 
 int http_caching_toggle(int caching_enabled) {

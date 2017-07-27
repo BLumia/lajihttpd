@@ -10,7 +10,7 @@ typedef struct supported_filetype {
 	char* type;
 } filetype_t;
 
-typedef struct httpStatusCode {
+typedef struct http_status_code {
 	int code;
 	char* desc;
 } statuscode_t;
