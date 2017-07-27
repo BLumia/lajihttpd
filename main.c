@@ -70,6 +70,7 @@ void httpd_shutdown_signal_handler(int signo) {
 
 int httpd_shutdown_main() {
 
+    epollmgr_shutdown();
     close(listenfd);
     laji_log_close();
     
