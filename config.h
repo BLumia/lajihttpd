@@ -10,6 +10,7 @@ typedef struct httpd_config {
     char LOG_LEVEL;
     int ENABLE_CACHE;
     int USE_MQ;
+    int KEEP_ALIVE_SUPPORT;
 } httpd_config_t;
 
 int httpd_config_main(httpd_config_t* cfg);

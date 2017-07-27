@@ -66,12 +66,10 @@ void* epollworker_eventloop(void *arg) {
             } else if (EPOLLIN == events) { // r
                 http_evt->event = EPOLLIN;
                 http_evt->epollfd = epollfd;
-                Epoll_ctl(http_evt->epollfd, EPOLL_CTL_DEL, http_evt->fd, 0, 0);
                 http_handle_read(http_evt);
             } else if (EPOLLOUT == events) { // w
                 http_evt->event = EPOLLOUT;
                 http_evt->epollfd = epollfd;
-                Epoll_ctl(http_evt->epollfd, EPOLL_CTL_DEL, http_evt->fd, 0, 0);
                 http_handle_write(http_evt); // free `http_evt` inside http_handle_write()
             }
         }

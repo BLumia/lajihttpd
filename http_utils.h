@@ -28,7 +28,8 @@ int http_handle_read(epoll_evt_data_t* http_evt);
 int http_handle_write(epoll_evt_data_t* http_evt);
 int http_copy_urldecoded_str(char* dest, char *pstr);
 int http_caching_toggle(int caching_enabled);
-int http_response_error(int socketfd, int status_code);
+int http_keepalive_toggle(int keepalive_enabled);
+int http_response_error(epoll_evt_data_t* http_evt, int status_code);
 char hex2char(char ch);
 
 #endif /* __LAJIHTTPD_HTTP_UTILS */

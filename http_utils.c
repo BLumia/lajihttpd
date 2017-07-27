@@ -37,10 +37,12 @@ statuscode_t status_arr[] = {
 };
 
 char laji_httpd_caching_data[BUFFER_SIZE];
+char laji_httpd_caching_header[BUFFER_SIZE];
 char laji_httpd_caching_file[161];
 size_t laji_httpd_caching_size;
 
 int laji_httpd_caching_enabled = 1;
+int laji_keepalive_support_enabled = 0;
 
 int http_handle_read(epoll_evt_data_t* http_evt) {
 
@@ -88,7 +90,7 @@ int http_handle_read(epoll_evt_data_t* http_evt) {
 
     http_copy_urldecoded_str(http_evt->url, &buffer[5]);
 
-    Epoll_ctl(http_evt->epollfd, EPOLL_CTL_ADD, http_evt->fd, EPOLLOUT, http_evt);
+    Epoll_ctl(http_evt->epollfd, EPOLL_CTL_MOD, http_evt->fd, EPOLLOUT, http_evt);
     
     return 0;
 }
@@ -101,37 +103,28 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
 
     socketfd = http_evt->fd;
     if (http_evt->type != GET) {
-        http_response_error(socketfd, 405);  return 0;
+        http_response_error(http_evt, 405);  return 0;
     }
 
     if (http_evt->response_code != 200) {
-        http_response_error(socketfd, http_evt->response_code);  return 0;
+        http_response_error(http_evt, http_evt->response_code);  return 0;
     }
 
     sprintf(buffer, "%s", http_evt->url);
     buffer_size = strlen(buffer);
-    content_type_str = type_arr[0].type;
-
-    for(int i=1; i < 14; i++) { // 14 is the elem count of type_arr[]
-        size_t slen = strlen(type_arr[i].ext);
-        if(!strncmp(&buffer[buffer_size-slen], type_arr[i].ext, slen)) {
-            content_type_str = type_arr[i].type;
-            break;
-        }
-    }
-
+    
     char* decoded_uri = http_evt->url;
-    int use_caching_data = 0;
 
+    int use_caching_data = 0;
     if (laji_httpd_caching_enabled) {
         int slen = strlen(decoded_uri);
         if (strncmp(decoded_uri, laji_httpd_caching_file, slen) == 0) use_caching_data = 1;
     } 
+
     if (use_caching_data) {
 
         laji_log(LOG_VERBOSE, "Handle accept using cache.");
-        sprintf(buffer,"HTTP/1.0 200 OK\r\nContent-Type: %s\r\nConnection: close\r\nContent-Length: %ld\r\n\r\n", content_type_str, laji_httpd_caching_size);
-        write(socketfd,buffer,strlen(buffer));
+        write(socketfd, laji_httpd_caching_header, strlen(laji_httpd_caching_header));
         write(socketfd, laji_httpd_caching_data, laji_httpd_caching_size);
 
     } else {
@@ -140,16 +133,30 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
 
         filefd = open(decoded_uri, O_RDONLY); 
         if(filefd == -1) {
-            http_response_error(socketfd, 404); return 0;
+            http_response_error(http_evt, 404); return 0;
+        }
+
+        content_type_str = type_arr[0].type;
+
+        for(int i=1; i < 14; i++) { // 14 is the elem count of type_arr[]
+            size_t slen = strlen(type_arr[i].ext);
+            if(!strncmp(&buffer[buffer_size-slen], type_arr[i].ext, slen)) {
+                content_type_str = type_arr[i].type;
+                break;
+            }
         }
 
         struct stat file_stat;
         fstat(filefd, &file_stat);
 
-        sprintf(buffer,"HTTP/1.0 200 OK\r\nContent-Type: %s\r\nConnection: close\r\nContent-Length: %ld\r\n\r\n", content_type_str, file_stat.st_size);
-        write(socketfd,buffer,strlen(buffer));
-
         if (laji_httpd_caching_enabled && file_stat.st_size < 4096) {
+            // cache and response
+            // response header
+            sprintf(laji_httpd_caching_header, "HTTP/1.0 200 OK\r\nContent-Type: %s\r\n%sContent-Length: %ld\r\n\r\n", 
+                                content_type_str, 
+                                laji_keepalive_support_enabled ? "" : "Connection: close\r\n", 
+                                file_stat.st_size);
+            write(socketfd, laji_httpd_caching_header, strlen(laji_httpd_caching_header));
             // copy filename
             strcpy(laji_httpd_caching_file, decoded_uri);
             // when write to socket, copy it to cache.
@@ -160,17 +167,28 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
                 write(socketfd, buffer, buffer_size);
             }
         } else {
+            // response header
+            sprintf(buffer, "HTTP/1.0 200 OK\r\nContent-Type: %s\r\n%sContent-Length: %ld\r\n\r\n", 
+                                content_type_str, 
+                                laji_keepalive_support_enabled ? "" : "Connection: close\r\n", 
+                                file_stat.st_size);
+            write(socketfd, buffer, strlen(buffer));
+            // just response, no cache.
             while ((buffer_size = read(filefd, buffer, BUFFER_SIZE)) > 0 ) {
                 write(socketfd, buffer, buffer_size);
             }
         }
-        
 
         close(filefd);
     }
 
-    read(socketfd, buffer, sizeof(buffer)); // anyone tell me why need read() here?
-    close(http_evt->fd);
+    if (laji_keepalive_support_enabled) {
+        Epoll_ctl(http_evt->epollfd, EPOLL_CTL_MOD, http_evt->fd, EPOLLIN, http_evt);
+    } else {
+        Epoll_ctl(http_evt->epollfd, EPOLL_CTL_DEL, http_evt->fd, 0, 0);
+        read(socketfd, buffer, sizeof(buffer)); // anyone tell me why need read() here?
+        close(http_evt->fd);
+    }
     
     // free the event struct here.
     free(http_evt);
@@ -178,7 +196,7 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
     return 0;
 }
 
-int http_response_error(int socketfd, int status_code) {
+int http_response_error(epoll_evt_data_t* http_evt, int status_code) {
 
     char buffer[BUFFER_SIZE+1], *status_str;
     status_str = status_arr[0].desc;
@@ -187,15 +205,24 @@ int http_response_error(int socketfd, int status_code) {
     }
 
     sprintf(buffer,"HTTP/1.0 %d %s\r\nContent-Type: text/html\r\nConnection: close\r\nContent-Length: 4\r\n\r\n%d\n", status_code, status_str, status_code);
-    write(socketfd, buffer, strlen(buffer));
-    read(socketfd, buffer, strlen(buffer)); // anyone tell me why need read() here?
-    close(socketfd);
+    write(http_evt->fd, buffer, strlen(buffer));
+    read(http_evt->fd, buffer, strlen(buffer)); // anyone tell me why need read() here?
+    close(http_evt->fd);
+
+    // free the event struct here.
+    free(http_evt);
 
     return 0;
 }
 
 int http_caching_toggle(int caching_enabled) {
     laji_httpd_caching_enabled = caching_enabled == 0 ? 0 : 1;
+    return 0;
+}
+
+int http_keepalive_toggle(int keepalive_enabled) {
+    laji_keepalive_support_enabled = keepalive_enabled == 0 ? 0 : 1;
+    return 0;
 }
 
 int http_copy_urldecoded_str(char* dest, char *pstr) {

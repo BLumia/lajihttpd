@@ -22,6 +22,7 @@ int httpd_init_configure(httpd_config_t* cfg) {
     cfg->LOG_LEVEL = 'V';
     cfg->ENABLE_CACHE = 1;
     cfg->USE_MQ = 1;
+    cfg->KEEP_ALIVE_SUPPORT = 0;
 }
 
 int httpd_process_configfile(httpd_config_t* cfg) {
@@ -48,6 +49,9 @@ int httpd_process_configfile(httpd_config_t* cfg) {
         } else if (strcmp("USE_MQ", laji_conf_get_varname()) == 0) {
             laji_conf_get_variable(&intval);
             cfg->USE_MQ = intval;
+        } else if (strcmp("KEEP_ALIVE_SUPPORT", laji_conf_get_varname())) {
+            laji_conf_get_variable(&intval);
+            cfg->KEEP_ALIVE_SUPPORT = intval;
         }
     }
 
@@ -59,5 +63,7 @@ int httpd_do_configuration(httpd_config_t* cfg) {
     laji_log_mq_toggle(cfg->USE_MQ);
     http_caching_toggle(cfg->ENABLE_CACHE);
     laji_log_level_set_c(cfg->LOG_LEVEL);
+    http_keepalive_toggle(cfg->KEEP_ALIVE_SUPPORT);
 
+    return 0;
 }
