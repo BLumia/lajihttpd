@@ -128,7 +128,8 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
     if (use_caching_data) {
 
         laji_log(LOG_VERBOSE, "Handle accept using cache.");
-
+        sprintf(buffer,"HTTP/1.0 200 OK\r\nContent-Type: %s\r\nConnection: close\r\nContent-Length: %ld\r\n\r\n", content_type_str, laji_httpd_caching_size);
+        write(socketfd,buffer,strlen(buffer));
         write(socketfd, laji_httpd_caching_data, laji_httpd_caching_size);
 
     } else {
@@ -147,6 +148,9 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
         write(socketfd,buffer,strlen(buffer));
 
         if (laji_httpd_caching_enabled && file_stat.st_size < 4096) {
+            // copy filename
+            strcpy(laji_httpd_caching_file, decoded_uri);
+            // when write to socket, copy it to cache.
             laji_httpd_caching_size = 0;
             while ((buffer_size = read(filefd, buffer, BUFFER_SIZE)) > 0 ) {
                 memcpy(laji_httpd_caching_data + laji_httpd_caching_size, buffer, buffer_size);
