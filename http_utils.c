@@ -171,6 +171,9 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
 
     read(socketfd, buffer, sizeof(buffer)); // anyone tell me why need read() here?
     close(http_evt->fd);
+    
+    // free the event struct here.
+    free(http_evt);
 
     return 0;
 }
