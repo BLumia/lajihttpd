@@ -90,6 +90,8 @@ int http_handle_read(epoll_evt_data_t* http_evt) {
 
     http_copy_urldecoded_str(http_evt->url, &buffer[5]);
 
+    read(socketfd, buffer, sizeof(buffer)); // cleanup read
+
     Epoll_ctl(http_evt->epollfd, EPOLL_CTL_MOD, http_evt->fd, EPOLLOUT, http_evt);
     
     return 0;
@@ -186,7 +188,6 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
         Epoll_ctl(http_evt->epollfd, EPOLL_CTL_MOD, http_evt->fd, EPOLLIN, http_evt);
     } else {
         Epoll_ctl(http_evt->epollfd, EPOLL_CTL_DEL, http_evt->fd, 0, 0);
-        read(socketfd, buffer, sizeof(buffer)); // anyone tell me why need read() here?
         close(http_evt->fd);
 
         // free the event struct here.

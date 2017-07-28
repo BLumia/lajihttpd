@@ -49,7 +49,7 @@ int httpd_process_configfile(httpd_config_t* cfg) {
         } else if (strcmp("USE_MQ", laji_conf_get_varname()) == 0) {
             laji_conf_get_variable(&intval);
             cfg->USE_MQ = intval;
-        } else if (strcmp("KEEP_ALIVE_SUPPORT", laji_conf_get_varname())) {
+        } else if (strcmp("KEEP_ALIVE_SUPPORT", laji_conf_get_varname()) == 0) {
             laji_conf_get_variable(&intval);
             cfg->KEEP_ALIVE_SUPPORT = intval;
         }
