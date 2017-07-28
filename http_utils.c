@@ -152,9 +152,9 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
         if (laji_httpd_caching_enabled && file_stat.st_size < 4096) {
             // cache and response
             // response header
-            sprintf(laji_httpd_caching_header, "HTTP/1.0 200 OK\r\nContent-Type: %s\r\n%sContent-Length: %ld\r\n\r\n", 
+            sprintf(laji_httpd_caching_header, "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nConnection: %s\r\nContent-Length: %ld\r\n\r\n", 
                                 content_type_str, 
-                                laji_keepalive_support_enabled ? "" : "Connection: close\r\n", 
+                                laji_keepalive_support_enabled ? "Keep-Alive" : "Close", 
                                 file_stat.st_size);
             write(socketfd, laji_httpd_caching_header, strlen(laji_httpd_caching_header));
             // copy filename
@@ -168,9 +168,9 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
             }
         } else {
             // response header
-            sprintf(buffer, "HTTP/1.0 200 OK\r\nContent-Type: %s\r\n%sContent-Length: %ld\r\n\r\n", 
+            sprintf(buffer, "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nConnection: %s\r\nContent-Length: %ld\r\n\r\n", 
                                 content_type_str, 
-                                laji_keepalive_support_enabled ? "" : "Connection: close\r\n", 
+                                laji_keepalive_support_enabled ? "Keep-Alive" : "Close", 
                                 file_stat.st_size);
             write(socketfd, buffer, strlen(buffer));
             // just response, no cache.
@@ -188,15 +188,17 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
         Epoll_ctl(http_evt->epollfd, EPOLL_CTL_DEL, http_evt->fd, 0, 0);
         read(socketfd, buffer, sizeof(buffer)); // anyone tell me why need read() here?
         close(http_evt->fd);
+
+        // free the event struct here.
+        free(http_evt);
     }
-    
-    // free the event struct here.
-    free(http_evt);
 
     return 0;
 }
 
 int http_response_error(epoll_evt_data_t* http_evt, int status_code) {
+
+    laji_log(LOG_VERBOSE, "Handle accept with error: %d.", http_evt->response_code);
 
     char buffer[BUFFER_SIZE+1], *status_str;
     status_str = status_arr[0].desc;

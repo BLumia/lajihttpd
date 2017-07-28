@@ -52,6 +52,12 @@ int create_and_bind(int port) {
 	if ((listenfd = Socket(AF_INET, SOCK_STREAM,0)) < 0) {
 		exit(EXIT_FAILURE);
 	}
+
+    int reuse_addr = 1;
+    if((setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, sizeof(reuse_addr)))<0) {  
+        perror("setsockopt()");  
+        exit(EXIT_FAILURE);  
+    } 
 	
 	srv_addr.sin_family = AF_INET; // IPv4 Socket
 	srv_addr.sin_port = htons(port); 
