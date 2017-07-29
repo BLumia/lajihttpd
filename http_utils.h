@@ -26,6 +26,7 @@ typedef struct epoll_eventdata {
 
 int http_handle_read(epoll_evt_data_t* http_evt);
 int http_handle_write(epoll_evt_data_t* http_evt);
+int http_handle_close(epoll_evt_data_t* http_evt);
 int http_copy_urldecoded_str(char* dest, char *pstr);
 int http_caching_toggle(int caching_enabled);
 int http_keepalive_toggle(int keepalive_enabled);

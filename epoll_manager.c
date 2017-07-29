@@ -61,13 +61,12 @@ void* epollworker_eventloop(void *arg) {
 
             if(events & EPOLLHUP || events & EPOLLERR) { 
                 perror("epoll main loop (not listenfd), EPOLLHUP or EPOLLERR");
-                close(http_evt->fd);
-                free(http_evt);
-            } else if (EPOLLIN == events) { // r
+                http_handle_close(http_evt);
+            } else if (EPOLLIN & events) { // r
                 http_evt->event = EPOLLIN;
                 http_evt->epollfd = epollfd;
                 http_handle_read(http_evt);
-            } else if (EPOLLOUT == events) { // w
+            } else if (EPOLLOUT & events) { // w
                 http_evt->event = EPOLLOUT;
                 http_evt->epollfd = epollfd;
                 http_handle_write(http_evt); // free `http_evt` inside http_handle_write()
@@ -136,7 +135,7 @@ int epollmgr_dispatch_acceptfd(int acceptfd) {
     // since it is NOT neccessary to make workers load too balance
     // we use simple %%%%%%%%%%%%%%%% :P
     int epollfd = epollworkerfds[acceptfd % EPOLL_WORKER_COUNT];
-    Epoll_ctl(epollfd, EPOLL_CTL_ADD, acceptfd, EPOLLIN, http_evt); // maybe plus EPOLLONESHOT ?
+    Epoll_ctl(epollfd, EPOLL_CTL_ADD, acceptfd, EPOLLIN /*| EPOLLONESHOT*/, http_evt); 
 
     return 0;
 }

@@ -48,16 +48,13 @@ int http_handle_read(epoll_evt_data_t* http_evt) {
 
     ssize_t read_size;
     char buffer[BUFFER_SIZE+1];
-    int socketfd;
 
-    socketfd = http_evt->fd;
-    read_size = sfdgets(socketfd, buffer, BUFFER_SIZE);
+    read_size = sfdgets(http_evt->fd, buffer, BUFFER_SIZE);
     // should not equals to 0 since this is the only line we need.
     if (read_size <= 0) {
         if (read_size < 0) perror("recv() at sfdgets() lower than 0:");
         else laji_log(LOG_WARN, "sfdgets() read 0 byte in a socketfd.");
-        close(socketfd);
-        free(http_evt);
+        http_handle_close(http_evt);
         return -1;
     }
 
@@ -90,20 +87,19 @@ int http_handle_read(epoll_evt_data_t* http_evt) {
 
     http_copy_urldecoded_str(http_evt->url, &buffer[5]);
 
-    read(socketfd, buffer, sizeof(buffer)); // cleanup read
+    read(http_evt->fd, buffer, sizeof(buffer)); // cleanup read
 
-    Epoll_ctl(http_evt->epollfd, EPOLL_CTL_MOD, http_evt->fd, EPOLLOUT, http_evt);
+    Epoll_ctl(http_evt->epollfd, EPOLL_CTL_MOD, http_evt->fd, EPOLLOUT /*| EPOLLONESHOT*/, http_evt);
     
     return 0;
 }
 
 int http_handle_write(epoll_evt_data_t* http_evt) {
     
-    int socketfd, filefd;
+    int filefd;
     ssize_t buffer_size;
     char buffer[BUFFER_SIZE+1], *content_type_str;
 
-    socketfd = http_evt->fd;
     if (http_evt->type != GET) {
         http_response_error(http_evt, 405);  return 0;
     }
@@ -126,8 +122,8 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
     if (use_caching_data) {
 
         laji_log(LOG_VERBOSE, "Handle accept using cache.");
-        write(socketfd, laji_httpd_caching_header, strlen(laji_httpd_caching_header));
-        write(socketfd, laji_httpd_caching_data, laji_httpd_caching_size);
+        write(http_evt->fd, laji_httpd_caching_header, strlen(laji_httpd_caching_header));
+        write(http_evt->fd, laji_httpd_caching_data, laji_httpd_caching_size);
 
     } else {
 
@@ -158,7 +154,7 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
                                 content_type_str, 
                                 laji_keepalive_support_enabled ? "Keep-Alive" : "Close", 
                                 file_stat.st_size);
-            write(socketfd, laji_httpd_caching_header, strlen(laji_httpd_caching_header));
+            write(http_evt->fd, laji_httpd_caching_header, strlen(laji_httpd_caching_header));
             // copy filename
             strcpy(laji_httpd_caching_file, decoded_uri);
             // when write to socket, copy it to cache.
@@ -166,7 +162,7 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
             while ((buffer_size = read(filefd, buffer, BUFFER_SIZE)) > 0 ) {
                 memcpy(laji_httpd_caching_data + laji_httpd_caching_size, buffer, buffer_size);
                 laji_httpd_caching_size += buffer_size;
-                write(socketfd, buffer, buffer_size);
+                write(http_evt->fd, buffer, buffer_size);
             }
         } else {
             // response header
@@ -174,10 +170,10 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
                                 content_type_str, 
                                 laji_keepalive_support_enabled ? "Keep-Alive" : "Close", 
                                 file_stat.st_size);
-            write(socketfd, buffer, strlen(buffer));
+            write(http_evt->fd, buffer, strlen(buffer));
             // just response, no cache.
             while ((buffer_size = read(filefd, buffer, BUFFER_SIZE)) > 0 ) {
-                write(socketfd, buffer, buffer_size);
+                write(http_evt->fd, buffer, buffer_size);
             }
         }
 
@@ -185,14 +181,19 @@ int http_handle_write(epoll_evt_data_t* http_evt) {
     }
 
     if (laji_keepalive_support_enabled) {
-        Epoll_ctl(http_evt->epollfd, EPOLL_CTL_MOD, http_evt->fd, EPOLLIN, http_evt);
+        Epoll_ctl(http_evt->epollfd, EPOLL_CTL_MOD, http_evt->fd, EPOLLIN /*| EPOLLONESHOT*/, http_evt);
     } else {
-        Epoll_ctl(http_evt->epollfd, EPOLL_CTL_DEL, http_evt->fd, 0, 0);
-        close(http_evt->fd);
-
-        // free the event struct here.
-        free(http_evt);
+        http_handle_close(http_evt);
     }
+
+    return 0;
+}
+
+int http_handle_close(epoll_evt_data_t* http_evt) {
+    // should NOT use this to close listenfd since we use free() here!
+    Epoll_ctl(http_evt->epollfd, EPOLL_CTL_DEL, http_evt->fd, 0, 0);
+    close(http_evt->fd);
+    free(http_evt);
 
     return 0;
 }
@@ -210,10 +211,7 @@ int http_response_error(epoll_evt_data_t* http_evt, int status_code) {
     sprintf(buffer,"HTTP/1.0 %d %s\r\nContent-Type: text/html\r\nConnection: close\r\nContent-Length: 4\r\n\r\n%d\n", status_code, status_str, status_code);
     write(http_evt->fd, buffer, strlen(buffer));
     read(http_evt->fd, buffer, strlen(buffer)); // anyone tell me why need read() here?
-    close(http_evt->fd);
-
-    // free the event struct here.
-    free(http_evt);
+    http_handle_close(http_evt);
 
     return 0;
 }
@@ -230,7 +228,7 @@ int http_keepalive_toggle(int keepalive_enabled) {
 
 int http_copy_urldecoded_str(char* dest, char *pstr) {
 
-    char *buf = (char*)malloc(strlen(pstr) + 1), *pbuf = buf;
+    char *pbuf = dest;
     while (*pstr) {
         if (*pstr == '%') {
             if (pstr[1] && pstr[2]) {
@@ -245,9 +243,6 @@ int http_copy_urldecoded_str(char* dest, char *pstr) {
         pstr++;
     }
     *pbuf = '\0';
-
-    strcpy(dest, buf);
-    free(buf);
 
     return 0;
 }
