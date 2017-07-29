@@ -200,7 +200,7 @@ int http_handle_close(epoll_evt_data_t* http_evt) {
 
 int http_response_error(epoll_evt_data_t* http_evt, int status_code) {
 
-    laji_log(LOG_VERBOSE, "Handle accept with error: %d.", http_evt->response_code);
+    laji_log(LOG_INFO, "Handle accept with error: %d.", http_evt->response_code);
 
     char buffer[BUFFER_SIZE+1], *status_str;
     status_str = status_arr[0].desc;

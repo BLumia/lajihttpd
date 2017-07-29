@@ -19,7 +19,7 @@ int httpd_config_main(httpd_config_t* cfg) {
 int httpd_init_configure(httpd_config_t* cfg) {
     
     cfg->PORT = 8080;
-    cfg->LOG_LEVEL = 'V';
+    cfg->LOG_LEVEL = LOG_VERBOSE;
     cfg->ENABLE_CACHE = 1;
     cfg->USE_MQ = 1;
     cfg->KEEP_ALIVE_SUPPORT = 0;
